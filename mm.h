@@ -1,3 +1,16 @@
+
+#define UNSCALED_POINTER_ADD(p, x) ((void *)((char *)(p) + (x)))
+#define UNSCALED_POINTER_SUB(p, x) ((void *)((char *)(p) - (x)))
+
+/** Size of a word on this architecture. */
+#define WORD_SIZE sizeof(void *)
+
+/**
+ * Alignment of blocks returned by mm_malloc.
+ * Each allocation needs to be at least be big enough for the free space metadata.
+ */
+#define ALIGNMENT (sizeof(FreeBlockInfo))
+
 /**
  * An BlockInfo contains information about a block, including the size
  * as well as pointers to the next and previous blocks in the free list.
@@ -36,3 +49,30 @@ typedef struct _Block
     BlockInfo info;
     FreeBlockInfo freeNode;
 } Block;
+
+/** Pointer to the first FreeBlockInfo in the free list, the list's head. */
+static Block *free_list_head = NULL;
+static Block *malloc_list_tail = NULL;
+
+static size_t heap_size = 0;
+
+/**
+ * Have the OS allocate more space for the heap.
+ * Returns a pointer to that new space, always larger than the last request and
+ * contiguous in memory.
+ */
+void *requestMoreSpace(size_t reqSize);
+
+/** Returns a pointer to the first block or returns NULL if there is not one. */
+Block *first_block();
+
+/**
+ * Returns a pointer to the adjacent block or returns NULL if there is not one.
+ */
+Block *next_block(Block *block);
+
+/** Prints a thorough listing of the heap data structure. */
+void examine_heap();
+
+/** Checks the heap for any issues and prints out errors as it finds them. */
+int check_heap();
