@@ -5,11 +5,16 @@
 /** Size of a word on this architecture. */
 #define WORD_SIZE sizeof(void *)
 
+/*********************************************/
+/************** Block Structure **************/
+/*********************************************/
+
 /**
  * Alignment of blocks returned by mm_malloc.
  * Each allocation needs to be at least be big enough for the free space metadata.
  */
-#define ALIGNMENT (sizeof(FreeBlockInfo))
+#define INFO_SIZE (sizeof(BlockInfo))
+#define FREE_INFO_SIZE (sizeof(FreeBlockInfo))
 
 /**
  * An BlockInfo contains information about a block, including the size
@@ -50,16 +55,70 @@ typedef struct _Block
     FreeBlockInfo freeNode;
 } Block;
 
-/** Pointer to the first FreeBlockInfo in the free list, the list's head. */
-static Block *free_list_head = NULL;
+/** Pointer to the tail in the malloc list */
 static Block *malloc_list_tail = NULL;
+/** Pointer to the head (a FreeBlockInfo pointer) in the free list. */
+static Block *free_list_head = NULL;
 
+/*********************************************/
+/************* Manage Heap Memory ************/
+/*********************************************/
+
+/** Size of the heap in bytes. */
 static size_t heap_size = 0;
 
 /**
+ * Allocate a block of memory of the given size.
+ * Returns a pointer to the block or, if size is zero, returns NULL.
+ */
+extern void *mm_malloc(size_t size);
+
+/* Deallocate the given pointer that was previously allocated by mm_malloc. */
+extern void mm_free(void *ptr);
+
+/*********************************************/
+/*********** Linked List Functions ***********/
+/*********************************************/
+
+/**
+ * Looks for the first free block that can fit the given amount of space.
+ * Returns a pointer to the free block or NULL in such does not exist.
+ */
+Block *searchList(size_t reqSize);
+
+/** Append a block to the end of malloc list. */
+void insert_at_tail(Block *block);
+
+/*********************************************/
+/*************** Free Blocks  ****************/
+/*********************************************/
+
+/** Adds a block to the list of free blocks. */
+void add_to_free_list(Block *block);
+
+/** Removes a block from the list of free blocks. */
+void remove_from_free_list(Block *block);
+
+/*********************************************/
+/************** Inspect  Heap  ***************/
+/*********************************************/
+
+/** Prints a thorough listing of the heap data structure. */
+void examine_heap();
+
+/** Checks the heap for any issues and prints out errors as it finds them. */
+int check_heap();
+
+/*********************************************/
+/*************** Backend Heap  ***************/
+/*********************************************/
+
+/** Initialize the allocator. */
+int mm_init();
+
+/**
  * Have the OS allocate more space for the heap.
- * Returns a pointer to that new space, always larger than the last request and
- * contiguous in memory.
+ * Returns a pointer to that new space, always larger than the last request and contiguous in memory.
  */
 void *requestMoreSpace(size_t reqSize);
 
@@ -70,9 +129,3 @@ Block *first_block();
  * Returns a pointer to the adjacent block or returns NULL if there is not one.
  */
 Block *next_block(Block *block);
-
-/** Prints a thorough listing of the heap data structure. */
-void examine_heap();
-
-/** Checks the heap for any issues and prints out errors as it finds them. */
-int check_heap();
