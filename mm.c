@@ -20,7 +20,7 @@ void *mm_malloc(size_t size)
     // determine size of data and size of request
     long int reqSize = FREE_INFO_SIZE * ((size + FREE_INFO_SIZE - 1) / FREE_INFO_SIZE); // adjust for header and alignment
 
-    Block *block = searchList(reqSize);
+    Block *block = searchFreeList(reqSize);
 
     // check for no fit
     if (block == NULL)
@@ -58,7 +58,7 @@ void mm_free(void *ptr)
 }
 
 /*********************************************/
-/*********** Linked List Functions ***********/
+/**************** Searching  *****************/
 /*********************************************/
 
 Block *searchList(size_t reqSize)
@@ -88,15 +88,42 @@ Block *searchList(size_t reqSize)
     return curr;
 }
 
+Block *searchFreeList(size_t reqSize)
+{
+    // check for positive request size
+    if (reqSize <= 0)
+    {
+        fprintf(stderr, "searchList(): The request size must be more than 0.");
+        return NULL;
+    }
+
+    Block *curr = free_list_head;
+
+    // check for empty list
+    if (curr == NULL)
+    {
+        return NULL;
+    }
+
+    while ((curr != NULL) &&
+           (curr->info.size > 0 ||
+            -(curr->info.size) < (signed long long)(reqSize)))
+    {
+        curr = next_block(curr);
+    }
+
+    return curr;
+}
+
+/*********************************************/
+/*********** Linked List Functions ***********/
+/*********************************************/
+
 void insert_at_tail(Block *block)
 {
     block->info.prev = malloc_list_tail;
     malloc_list_tail = block;
 }
-
-/*********************************************/
-/*************** Free Blocks  ****************/
-/*********************************************/
 
 void add_to_free_list(Block *block)
 {
@@ -138,7 +165,7 @@ void remove_from_free_list(Block *block)
 }
 
 /*********************************************/
-/************** Inspect  Heap  ***************/
+/*************** Inspect Heap  ***************/
 /*********************************************/
 
 void examine_heap()

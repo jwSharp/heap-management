@@ -80,7 +80,7 @@ extern void *mm_malloc(size_t size);
 extern void mm_free(void *ptr);
 
 /*********************************************/
-/*********** Linked List Functions ***********/
+/**************** Searching  *****************/
 /*********************************************/
 
 /**
@@ -89,12 +89,19 @@ extern void mm_free(void *ptr);
  */
 Block *searchList(size_t reqSize);
 
-/** Append a block to the end of malloc list. */
-void insert_at_tail(Block *block);
+/**
+ * Looks for the first free block that can fit the given amount of space.
+ * Returns a pointer to the free block or NULL in such does not exist.
+ * Only searches in the list of free blocks.
+ */
+Block *searchFreeList(size_t reqSize);
 
 /*********************************************/
-/*************** Free Blocks  ****************/
+/*********** Linked List Functions ***********/
 /*********************************************/
+
+/** Append a block to the end of malloc list. */
+void insert_at_tail(Block *block);
 
 /**
  * Adds a block to the list of free blocks.
