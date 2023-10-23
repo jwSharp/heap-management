@@ -18,17 +18,16 @@ void *mm_malloc(size_t size)
     }
 
     // determine size of data and size of request
-    size = (size >= FREE_INFO_SIZE) ? size : FREE_INFO_SIZE; // adjust for minimum size
-    // printf("\nALLOCATION of %zu:\t", size);
-    long int reqSize = size + INFO_SIZE + ((size + INFO_SIZE) % 8); // adjust for header and alignment
+    long int reqSize = FREE_INFO_SIZE * ((size + FREE_INFO_SIZE - 1) / FREE_INFO_SIZE); // adjust for header and alignment
 
     Block *block = searchList(reqSize);
 
     // check for no fit
     if (block == NULL)
     {
-        block = (Block *)requestMoreSpace(reqSize);
-        block->info.size = -size;
+        // request enough for the header
+        block = (Block *)requestMoreSpace(INFO_SIZE + reqSize);
+        block->info.size = -reqSize;
 
         insert_at_tail(block);
     }
@@ -39,6 +38,7 @@ void *mm_malloc(size_t size)
 
     // allocate block
     block->info.size *= -1;
+    // examine_heap(); visual debug
     return UNSCALED_POINTER_ADD(block, INFO_SIZE); // pointer to the data
 }
 
