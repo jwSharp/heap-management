@@ -4,60 +4,112 @@
 #include "memlib.h"
 #include "mm.h"
 
-/** Get more heap space of exact size reqSize. */
-void *requestMoreSpace(size_t reqSize)
-{
-    void *ret = UNSCALED_POINTER_ADD(mem_heap_lo(), heap_size);
-    heap_size += reqSize;
+/*********************************************/
+/************* Manage Heap Memory ************/
+/*********************************************/
 
-    void *mem_sbrk_result = mem_sbrk(reqSize);
-    if ((size_t)mem_sbrk_result == -1)
+void *mm_malloc(size_t size)
+{
+    // zero- or negative-size requests are invalid
+    if (size <= 0)
     {
-        printf("ERROR: mem_sbrk failed in requestMoreSpace\n");
-        exit(0);
+        fprintf(stderr, "mm_malloc(): Cannot allocate negative space or no space.");
+        return NULL;
     }
 
-    return ret;
+    // determine size of data and size of request
+    size = (size >= FREE_INFO_SIZE) ? size : FREE_INFO_SIZE; // adjust for minimum size
+    // printf("\nALLOCATION of %zu:\t", size);
+    long int reqSize = size + INFO_SIZE + ((size + INFO_SIZE) % 8); // adjust for header and alignment
+
+    Block *block = searchList(reqSize);
+
+    // check for no fit
+    if (block == NULL)
+    {
+        block = (Block *)requestMoreSpace(reqSize);
+        block->info.size = -size;
+
+        insert_at_tail(block);
+    }
+    else
+    {
+        remove_from_free_list(block);
+    }
+
+    // allocate block
+    block->info.size *= -1;
+    return UNSCALED_POINTER_ADD(block, INFO_SIZE); // pointer to the data
 }
 
-/** Initialize the allocator. */
-int mm_init()
+void mm_free(void *ptr)
 {
-    free_list_head = NULL;
-    malloc_list_tail = NULL;
-    heap_size = 0;
+    Block *block = (Block *)UNSCALED_POINTER_SUB(ptr, INFO_SIZE); // pointer to a block
 
-    return 0;
+    if (block->info.size >= 0)
+    {
+        ; // fprintf(stderr, "mm_free(): This block is already free.");
+    }
+    block->info.size *= -1;
+
+    add_to_free_list(block);
 }
 
-/** Gets the first block in the heap or returns NULL if there is not one. */
-Block *first_block()
+/*********************************************/
+/*********** Linked List Functions ***********/
+/*********************************************/
+
+Block *searchList(size_t reqSize)
 {
-    Block *first = (Block *)mem_heap_lo();
-    if (heap_size == 0)
+    // check for positive request size
+    if (reqSize <= 0)
+    {
+        fprintf(stderr, "searchList(): The request size must be more than 0.");
+        return NULL;
+    }
+
+    Block *curr = first_block();
+
+    // check for empty list
+    if (curr == NULL)
     {
         return NULL;
     }
 
-    return first;
-}
-
-/** Gets the adjacent block or returns NULL if there is not one. */
-Block *next_block(Block *block)
-{
-    size_t distance = (block->info.size > 0) ? block->info.size : -block->info.size;
-
-    Block *end = (Block *)UNSCALED_POINTER_ADD(mem_heap_lo(), heap_size);
-    Block *next = (Block *)UNSCALED_POINTER_ADD(block, sizeof(BlockInfo) + distance);
-    if (next >= end)
+    while ((curr != NULL) &&
+           (curr->info.size > 0 ||
+            -(curr->info.size) < (signed long long)(reqSize)))
     {
-        return NULL;
+        curr = next_block(curr);
     }
 
-    return next;
+    return curr;
 }
 
-/** Print the heap by iterating through it as an implicit free list. */
+void insert_at_tail(Block *block)
+{
+    block->info.prev = malloc_list_tail;
+    malloc_list_tail = block;
+}
+
+/*********************************************/
+/*************** Free Blocks  ****************/
+/*********************************************/
+
+void add_to_free_list(Block *block)
+{
+    ;
+}
+
+void remove_from_free_list(Block *block)
+{
+    ;
+}
+
+/*********************************************/
+/************** Inspect  Heap  ***************/
+/*********************************************/
+
 void examine_heap()
 {
     // print to stderr so output isn't buffered and not output if we crash
@@ -73,8 +125,10 @@ void examine_heap()
 
     while (curr && curr < end)
     {
-        // print out common block attributes and allocated/free specific data
+        // print out common block attributes
         fprintf(stderr, "%p: %ld\t", (void *)curr, curr->info.size);
+
+        // and allocated/free specific data
         if (curr->info.size > 0)
         {
             fprintf(stderr, "ALLOCATED\tprev: %p\n", (void *)curr->info.prev);
@@ -98,7 +152,6 @@ void examine_heap()
     fprintf(stderr, "\n");
 }
 
-/** Checks the heap data structure for consistency. */
 int check_heap()
 {
     Block *curr = (Block *)mem_heap_lo();
@@ -144,4 +197,59 @@ int check_heap()
     }
 
     return 0;
+}
+
+/*********************************************/
+/*************** Backend Heap  ***************/
+/*********************************************/
+
+int mm_init()
+{
+    free_list_head = NULL;
+    malloc_list_tail = NULL;
+    heap_size = 0;
+
+    return 0;
+}
+
+void *requestMoreSpace(size_t reqSize)
+{
+    void *ret = UNSCALED_POINTER_ADD(mem_heap_lo(), heap_size);
+    heap_size += reqSize;
+
+    void *mem_sbrk_result = mem_sbrk(reqSize);
+    if ((size_t)mem_sbrk_result == -1)
+    {
+        printf("ERROR: mem_sbrk failed in requestMoreSpace\n");
+        exit(0);
+    }
+
+    return ret;
+}
+
+Block *first_block()
+{
+    // first address in the heap
+    Block *first = (Block *)mem_heap_lo();
+    if (heap_size == 0)
+    {
+        return NULL;
+    }
+
+    return first;
+}
+
+Block *next_block(Block *block)
+{
+    size_t distance = (block->info.size > 0) ? block->info.size : -block->info.size;
+
+    // last address in the heap
+    Block *end = (Block *)UNSCALED_POINTER_ADD(mem_heap_lo(), heap_size);
+    Block *next = (Block *)UNSCALED_POINTER_ADD(block, sizeof(BlockInfo) + distance);
+    if (next >= end)
+    {
+        return NULL;
+    }
+
+    return next;
 }
