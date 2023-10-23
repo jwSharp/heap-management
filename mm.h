@@ -10,10 +10,13 @@
 /*********************************************/
 
 /**
- * Alignment of blocks returned by mm_malloc.
- * Each allocation needs to be at least be big enough for the free space metadata.
+ * Size of the BlockInfo structure.
  */
 #define INFO_SIZE (sizeof(BlockInfo))
+/**
+ * Size of the FreeBlockInfo structure for free blocks.
+ * Alignment of blocks returned by mm_malloc.
+ */
 #define FREE_INFO_SIZE (sizeof(FreeBlockInfo))
 
 /**
@@ -93,10 +96,15 @@ void insert_at_tail(Block *block);
 /*************** Free Blocks  ****************/
 /*********************************************/
 
-/** Adds a block to the list of free blocks. */
+/**
+ * Adds a block to the list of free blocks.
+ * Uses space to create to create FreeBlockInfo structure.
+ */
 void add_to_free_list(Block *block);
 
-/** Removes a block from the list of free blocks. */
+/**
+ * Removes a block from the list of free blocks.
+ */
 void remove_from_free_list(Block *block);
 
 /*********************************************/

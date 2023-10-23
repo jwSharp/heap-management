@@ -38,7 +38,9 @@ void *mm_malloc(size_t size)
 
     // allocate block
     block->info.size *= -1;
-    // examine_heap(); visual debug
+
+    // examine_heap(); // visual debug
+
     return UNSCALED_POINTER_ADD(block, INFO_SIZE); // pointer to the data
 }
 
@@ -98,12 +100,41 @@ void insert_at_tail(Block *block)
 
 void add_to_free_list(Block *block)
 {
-    ;
+    // empty list
+    if (free_list_head == NULL)
+    {
+        block->freeNode.nextFree = NULL;
+        block->freeNode.prevFree = NULL;
+        free_list_head = block;
+    }
+
+    // append to the beginning of the list
+    else
+    {
+        free_list_head->freeNode.prevFree = block;
+        block->freeNode.nextFree = free_list_head;
+        block->freeNode.prevFree = NULL;
+        free_list_head = block;
+    }
 }
 
 void remove_from_free_list(Block *block)
 {
-    ;
+    // set the previous' next to the previous
+    if (block->freeNode.prevFree != NULL)
+    {
+        block->freeNode.prevFree->freeNode.nextFree = block->freeNode.nextFree;
+    }
+    else // update head of the list
+    {
+        free_list_head = block->freeNode.nextFree;
+    }
+
+    // set the next's previous to the previous
+    if (block->freeNode.nextFree != NULL)
+    {
+        block->freeNode.nextFree->freeNode.prevFree = block->freeNode.prevFree;
+    }
 }
 
 /*********************************************/
