@@ -63,6 +63,29 @@ static Block *malloc_list_tail = NULL;
 /** Pointer to the head (a FreeBlockInfo pointer) in the free list. */
 static Block *free_list_head = NULL;
 
+#define NUM_OF_FREE_LISTS 6
+
+/** Pointer to the head (a FreeBlockInfo pointer) in a list of free blocks with sizes between minimum - 1023. */
+static Block *free_list_0_head = NULL;
+/** Pointer to the head (a FreeBlockInfo pointer) in a list of free blocks with sizes between 1024 - 2047. */
+static Block *free_list_1_head = NULL;
+/** Pointer to the head (a FreeBlockInfo pointer) in a list of free blocks with sizes between 2048 - 4095. */
+static Block *free_list_2_head = NULL;
+/** Pointer to the head (a FreeBlockInfo pointer) in a list of free blocks with sizes between 4096 - 8191. */
+static Block *free_list_3_head = NULL;
+/** Pointer to the head (a FreeBlockInfo pointer) in a list of free blocks with sizes between 8192 - 16383. */
+static Block *free_list_4_head = NULL;
+/** Pointer to the head (a FreeBlockInfo pointer) in a list of free blocks with sizes between 16384 - maximum. */
+static Block *free_list_5_head = NULL;
+
+static Block *free_lists[] = {
+    &free_list_0_head,
+    &free_list_1_head,
+    &free_list_2_head,
+    &free_list_3_head,
+    &free_list_4_head,
+    &free_list_5_head};
+
 /*********************************************/
 /************* Manage Heap Memory ************/
 /*********************************************/
@@ -95,6 +118,13 @@ Block *searchList(size_t reqSize);
  * Only searches in the list of free blocks.
  */
 Block *searchFreeList(size_t reqSize);
+
+/**
+ * Looks for the first free block that can fit the given amount of space.
+ * Returns a pointer to the free block or NULL in such does not exist.
+ * Searches free lists closest to the reqSize first.
+ */
+Block *searchFreeLists(size_t reqSize);
 
 /*********************************************/
 /************* Resizing Blocks  **************/
