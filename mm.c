@@ -126,6 +126,12 @@ Block *searchFreeList(size_t reqSize)
         curr = next_block(curr);
     }
 
+    // split block if possible
+    if (curr != NULL && (labs(curr->info.size) - reqSize >= SPLIT_THRESHOLD))
+    {
+        split(curr, reqSize);
+    }
+
     return curr;
 }
 
@@ -214,6 +220,34 @@ void coalesce(Block *block)
         check_heap();
 #endif
     }
+}
+
+void split(Block *block, size_t reqSize)
+{
+    // create a new block
+    Block *new = (Block *)UNSCALED_POINTER_ADD(block, INFO_SIZE + reqSize);
+    new->info.prev = block;
+    new->info.size = -(labs(block->info.size) - (INFO_SIZE + reqSize)); // already aligned
+
+    // add to lists
+    add_to_free_list(new);
+    Block *next = next_block(block);
+    if (next != NULL)
+    {
+        next->info.prev = new;
+    }
+    else
+    {
+        malloc_list_tail = new;
+    }
+
+    // update previous block's size
+    block->info.size = -reqSize;
+
+#if DEBUG
+    // DEBUG
+    check_heap();
+#endif
 }
 
 /*********************************************/
