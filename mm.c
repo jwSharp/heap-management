@@ -4,6 +4,8 @@
 #include "memlib.h"
 #include "mm.h"
 
+#define DEBUG 0
+
 /*********************************************/
 /************* Manage Heap Memory ************/
 /*********************************************/
@@ -39,7 +41,10 @@ void *mm_malloc(size_t size)
     // allocate block
     block->info.size *= -1;
 
-    // examine_heap(); // visual debug
+#if DEBUG
+    // DEBUG
+    check_heap();
+#endif
 
     return UNSCALED_POINTER_ADD(block, INFO_SIZE); // pointer to the data
 }
@@ -48,13 +53,21 @@ void mm_free(void *ptr)
 {
     Block *block = (Block *)UNSCALED_POINTER_SUB(ptr, INFO_SIZE); // pointer to a block
 
-    if (block->info.size >= 0)
+    if (block->info.size <= 0)
     {
-        ; // fprintf(stderr, "mm_free(): This block is already free.");
+        fprintf(stderr, "mm_free(): This block is already free.");
+        return;
     }
     block->info.size *= -1;
 
+    // update the free list
     add_to_free_list(block);
+    coalesce(block);
+
+#if DEBUG
+    // DEBUG
+    check_heap();
+#endif
 }
 
 /*********************************************/
@@ -105,6 +118,7 @@ Block *searchFreeList(size_t reqSize)
         return NULL;
     }
 
+    // find the next available block
     while ((curr != NULL) &&
            (curr->info.size > 0 ||
             -(curr->info.size) < (signed long long)(reqSize)))
@@ -116,6 +130,93 @@ Block *searchFreeList(size_t reqSize)
 }
 
 /*********************************************/
+/************* Resizing Blocks  **************/
+/*********************************************/
+
+void coalesce(Block *block)
+{
+    Block *prev = block->info.prev;
+    Block *next = next_block(block);
+
+    if (prev != NULL && prev->info.size < 0)
+    {
+        // coalesce all three blocks
+        if (next != NULL && next->info.size < 0)
+        {
+            // update previous' size
+            prev->info.size -= 2 * INFO_SIZE + labs(block->info.size) + labs(next->info.size);
+
+            // update new nextblock's previous
+            Block *new_next = next_block(next);
+            if (new_next != NULL)
+            {
+                new_next->info.prev = prev;
+            }
+            else // next was the list tail
+            {
+                malloc_list_tail = prev;
+            }
+
+            // remove blocks from free list
+            remove_from_free_list(block);
+            remove_from_free_list(next);
+
+#if DEBUG
+            // DEBUG
+            check_heap();
+#endif
+        }
+        // coalesce previous and current blocks
+        else
+        {
+            // update previous' size
+            prev->info.size -= INFO_SIZE + labs(block->info.size);
+
+            // update malloc and free lists
+            remove_from_free_list(block);
+            if (next != NULL) // update previous pointer
+            {
+                next->info.prev = prev;
+            }
+            else // update the list tail
+            {
+                malloc_list_tail = prev;
+            }
+
+#if DEBUG
+            // DEBUG
+            check_heap();
+#endif
+        }
+    }
+    // coalesce current and next blocks
+    else if (next != NULL && next->info.size < 0)
+    {
+        // update current's size
+        block->info.size -= INFO_SIZE + labs(next->info.size);
+
+        // update new nextblock's previous
+        Block *new_next = next_block(next);
+        if (new_next != NULL)
+        {
+            new_next->info.prev = block;
+        }
+        else // next was the list tail
+        {
+            malloc_list_tail = block;
+        }
+
+        // remove block from free list
+        remove_from_free_list(next);
+
+#if DEBUG
+        // DEBUG
+        check_heap();
+#endif
+    }
+}
+
+/*********************************************/
 /*********** Linked List Functions ***********/
 /*********************************************/
 
@@ -123,6 +224,11 @@ void insert_at_tail(Block *block)
 {
     block->info.prev = malloc_list_tail;
     malloc_list_tail = block;
+
+#if DEBUG
+    // DEBUG
+    check_heap();
+#endif
 }
 
 void add_to_free_list(Block *block)
@@ -143,25 +249,38 @@ void add_to_free_list(Block *block)
         block->freeNode.prevFree = NULL;
         free_list_head = block;
     }
+
+#if DEBUG
+    // DEBUG
+    check_heap();
+#endif
 }
 
 void remove_from_free_list(Block *block)
 {
+    Block *prev = block->freeNode.prevFree;
+    Block *next = block->freeNode.nextFree;
+
     // set the previous' next to the previous
-    if (block->freeNode.prevFree != NULL)
+    if (prev != NULL)
     {
-        block->freeNode.prevFree->freeNode.nextFree = block->freeNode.nextFree;
+        prev->freeNode.nextFree = next;
     }
     else // update head of the list
     {
-        free_list_head = block->freeNode.nextFree;
+        free_list_head = next;
     }
 
     // set the next's previous to the previous
-    if (block->freeNode.nextFree != NULL)
+    if (next != NULL)
     {
-        block->freeNode.nextFree->freeNode.prevFree = block->freeNode.prevFree;
+        next->freeNode.prevFree = prev;
     }
+
+#if DEBUG
+    // DEBUG
+    check_heap();
+#endif
 }
 
 /*********************************************/
@@ -173,7 +292,9 @@ void examine_heap()
     // print to stderr so output isn't buffered and not output if we crash
     Block *curr = (Block *)mem_heap_lo();                                 // pointer to the current block
     Block *end = (Block *)UNSCALED_POINTER_ADD(mem_heap_lo(), heap_size); // pointer to the tail block
-    fprintf(stderr, "heap size:\t0x%lx\n", heap_size);
+    void *prev = NULL;
+
+    fprintf(stderr, "heap size:\t0x%lu\n", (long)heap_size);
     fprintf(stderr, "heap start:\t%p\n", curr);
     fprintf(stderr, "heap end:\t%p\n", end);
 
@@ -181,6 +302,7 @@ void examine_heap()
 
     fprintf(stderr, "malloc_list_tail: %p\n", (void *)malloc_list_tail);
 
+    int all_correct = 1;
     while (curr && curr < end)
     {
         // print out common block attributes
@@ -189,25 +311,51 @@ void examine_heap()
         // and allocated/free specific data
         if (curr->info.size > 0)
         {
-            fprintf(stderr, "ALLOCATED\tprev: %p\n", (void *)curr->info.prev);
+            fprintf(stderr, "ALLOCATED\tprev: %p", (void *)curr->info.prev);
         }
         else
         {
-            fprintf(stderr, "FREE\tnextFree: %p, prevFree: %p, prev: %p\n", (void *)curr->freeNode.nextFree, (void *)curr->freeNode.prevFree, (void *)curr->info.prev);
+            fprintf(stderr, "FREE\tnextFree: %p, prevFree: %p, prev: %p", (void *)curr->freeNode.nextFree, (void *)curr->freeNode.prevFree, (void *)curr->info.prev);
         }
 
+        // verify previous pointers
+        if (curr->info.prev == prev)
+        {
+            fprintf(stderr, " ✓\n");
+        }
+        else
+        {
+            fprintf(stderr, " ✗\n");
+            all_correct = 0;
+        }
+
+        // move to next
+        prev = curr;
         curr = next_block(curr);
     }
     fprintf(stderr, "END OF HEAP\n\n");
 
-    curr = free_list_head;
-    fprintf(stderr, "Head ");
+    if (!all_correct)
+    {
+        fprintf(stderr, "Not all pointers were correct.");
+    }
+
+    examine_free_list();
+
+    fprintf(stderr, "\n");
+}
+
+void examine_free_list()
+{
+    Block *curr = free_list_head;
+    fprintf(stderr, "HEAD OF FREE LIST: ");
+
+    // print out links
     while (curr)
     {
         fprintf(stderr, "-> %p ", curr);
         curr = curr->freeNode.nextFree;
     }
-    fprintf(stderr, "\n");
 }
 
 int check_heap()
@@ -221,8 +369,9 @@ int check_heap()
     {
         if (curr->info.prev != last)
         {
-            fprintf(stderr, "check_heap: Error: previous link not correct.\n");
             examine_heap();
+            fprintf(stderr, "check_heap: Error: previous link not correct.\nCurr = %p, curr->prev = %p, previous = %p\n\n",
+                    curr, curr->info.prev, last);
         }
 
         if (curr->info.size <= 0)
@@ -235,21 +384,28 @@ int check_heap()
         curr = next_block(curr);
     }
 
+    // check malloc list tail
+    if (last != malloc_list_tail)
+    {
+        fprintf(stderr, "check_heap: Error: malloc list tail incorrect\nCurrent Tail: %p, Correct Tail: %p",
+                malloc_list_tail, last);
+    }
+
     curr = free_list_head;
     last = NULL;
     while (curr)
     {
         if (curr == last)
         {
-            fprintf(stderr, "check_heap: Error: free list is circular.\n");
             examine_heap();
+            fprintf(stderr, "check_heap: Error: free list is circular.\n\n");
         }
         last = curr;
         curr = curr->freeNode.nextFree;
         if (free_count == 0)
         {
-            fprintf(stderr, "check_heap: Error: free list has more items than expected.\n");
             examine_heap();
+            fprintf(stderr, "check_heap: Error: free list has more items than expected.\n\n");
         }
         free_count--;
     }

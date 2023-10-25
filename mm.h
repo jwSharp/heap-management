@@ -97,6 +97,25 @@ Block *searchList(size_t reqSize);
 Block *searchFreeList(size_t reqSize);
 
 /*********************************************/
+/************* Resizing Blocks  **************/
+/*********************************************/
+
+#define SPLIT_THRESHOLD sizeof(BlockInfo) + sizeof(FreeBlockInfo)
+
+/** Coalesces surrounding free blocks and updates free list. */
+void coalesce(Block *block);
+
+/**
+ * Splits the block into two separate blocks.
+ * While maintaining the required size of the first block,
+ * it creates a new block and adds it to the malloc list and free list.
+ *
+ * @param reqSize Aligned size of a request for memory allocation.
+ *          Must be aligned to a multiple of 8.
+ */
+void split(Block *block, size_t reqSize);
+
+/*********************************************/
 /*********** Linked List Functions ***********/
 /*********************************************/
 
@@ -120,6 +139,9 @@ void remove_from_free_list(Block *block);
 
 /** Prints a thorough listing of the heap data structure. */
 void examine_heap();
+
+/** Prints a thorough listing of the free blocks in the heap data structure. */
+void examine_free_list();
 
 /** Checks the heap for any issues and prints out errors as it finds them. */
 int check_heap();
